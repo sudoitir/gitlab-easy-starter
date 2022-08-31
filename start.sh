@@ -18,21 +18,24 @@ if [[ "$responseDir" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     sudo setfacl -R -m u:sudoit:rwx /srv/docker/gitlab
   fi
 fi
-read -r -p "Do You Create SSL? [y/N] " response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+read -r -p "Do You Create SSL? [y/N] " responseSSL
+if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   sudo apt install openssl -y
   openssl genrsa -out gitlab.key 2048
   openssl req -new -key gitlab.key -out gitlab.csr
   openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
   openssl dhparam -out dhparam.pem 2048
+fi
+read -r -p "Copy SSL Stuffs To Gitlab Directory?? [y/N] " responseSSLCP
+if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   mkdir -pv /srv/docker/gitlab/gitlab-data/certs
   cp gitlab.key /srv/docker/gitlab/gitlab-data/certs
   cp gitlab.crt /srv/docker/gitlab/gitlab-data/certs
   cp dhparam.pem /srv/docker/gitlab/gitlab-data/certs
-#  chmod 400 /srv/docker/gitlab/gitlab-data/certs/certsgitlab.key
+  #  chmod 400 /srv/docker/gitlab/gitlab-data/certs/certsgitlab.key
 fi
-read -r -p "Do You Want To Create Containers? [y/N] " response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+read -r -p "Do You Want To Create Containers? [y/N] " responseDocker
+if [[ "$responseDocker" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   docker run --name gitlab-postgresql -d --restart always \
     --env 'DB_NAME=gitlab_haytech' \
     --env 'DB_USER=gitlab' \
