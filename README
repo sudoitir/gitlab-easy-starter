@@ -1,0 +1,51 @@
+############# Make Directories: #############
+
+mkdir -p srv/docker/gitlab/redis-data
+
+mkdir -p srv/docker/gitlab/postgresql-data
+
+mkdir -p srv/docker/gitlab/gitlab-data
+
+
+
+############# if You are SELinux User: #############
+
+sudo chcon -Rt svirt_sandbox_file_t srv/docker/gitlab/redis-data
+
+sudo chcon -Rt svirt_sandbox_file_t srv/docker/gitlab/postgresql-data
+
+sudo chcon -Rt svirt_sandbox_file_t srv/docker/gitlab/gitlab-data
+
+
+
+############# SSL: #############
+
+openssl genrsa -out gitlab.key 2048
+openssl req -new -key gitlab.key -out gitlab.csr
+openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
+openssl dhparam -out dhparam.pem 2048
+
+
+mkdir -p srv/docker/gitlab/gitlab-data/certs
+cp gitlab.key /srv/docker/gitlab/gitlab/certs/
+cp gitlab.crt /srv/docker/gitlab/gitlab/certs/
+cp dhparam.pem /srv/docker/gitlab/gitlab/certs/
+chmod 400 /srv/docker/gitlab/gitlab/certs/gitlab.key
+
+
+
+############# GitLab HealthCheck #############
+
+healthcheck log:
+
+docker inspect --format "{{json .State.Health }}" $(docker-compose ps -q gitlab) | jq
+
+############# Monitoring #############
+
+curl 'https://gitlab.example.com/-/liveness'
+
+On success, the endpoint will return 200:
+
+{
+   "status": "ok"
+}
