@@ -42,19 +42,24 @@ fi
 echo "Restart Docker....."
 sudo systemctl restart docker
 sleep 10
+docker pull postgres:14.5
+docker pull redis:7.0.4
+docker pull sameersbn/gitlab:15.3.1
 sudo systemctl status docker
 read -r -p "Do You Want To Create Containers? [y/N] " responseDocker
 if [[ "$responseDocker" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   docker run --name gitlab-postgresql -d --restart always \
-    --env 'DB_NAME=gitlabhq_production' \
-    --env 'DB_USER=gitlab' \
-    --env 'DB_PASS=hoS$P3g5KY*oN87ZSVdZQEwi9f%L' \
-    --env 'DB_EXTENSION=pg_trgm,btree_gist' \
+    --env 'POSTGRES_DB=gitlabhq_production' \
+    --env 'POSTGRES_USER=gitlab' \
+    --env 'POSTGRES_PASSWORD=hoS$P3g5KY*oN87ZSVdZQEwi9f%L' \
+    --env 'TZ=Asia/Tehran' \
     --volume /srv/docker/gitlab/postgresql:/var/lib/postgresql \
-    sameersbn/postgresql:12-20200524
+    postgres:14.5
   docker run --name gitlab-redis -d --restart always \
     --volume /srv/docker/gitlab/redis:/data \
-    redis:6.2
+    redis:7.0.4
+  echo "Wait For Postgres And Redis...."
+  sleep 10
   docker run --name gitlab -d --restart always \
     --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
     --publish 8022:22 --publish 8030:80 \
