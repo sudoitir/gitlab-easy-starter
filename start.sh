@@ -7,7 +7,8 @@ if [[ "$responseDir" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     sudo mkdir -pv /srv/docker/gitlab/redis-data
     sudo mkdir -pv /srv/docker/gitlab/postgresql-data
     sudo mkdir -pv /srv/docker/gitlab/gitlab-data
-    sudo setfacl -R -m u:sudoit:rwx /srv/docker/gitlab
+    #sudo setfacl -R -m u:sudoit:rwx /srv/docker/gitlab
+    sudo chmod -R a+X /srv/docker/gitlab
     sudo chcon -Rt svirt_sandbox_file_t /srv/docker/gitlab/redis-data
     sudo chcon -Rt svirt_sandbox_file_t /srv/docker/gitlab/postgresql-data
     sudo chcon -Rt svirt_sandbox_file_t /srv/docker/gitlab/gitlab-data
@@ -15,7 +16,8 @@ if [[ "$responseDir" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     sudo mkdir -pv /srv/docker/gitlab/redis-data
     sudo mkdir -pv /srv/docker/gitlab/postgresql-data
     sudo mkdir -pv /srv/docker/gitlab/gitlab-data
-    sudo setfacl -R -m u:sudoit:rwx /srv/docker/gitlab
+    #sudo setfacl -R -m u:sudoit:rwx /srv/docker/gitlab
+    sudo chmod -R a+X /srv/docker/gitlab
   fi
 fi
 read -r -p "Do You Create SSL? [y/N] " responseSSL
@@ -41,10 +43,10 @@ if [[ "$responseDocker" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     --env 'DB_USER=gitlab' \
     --env 'DB_PASS=hoS$P3g5KY*oN87ZSVdZQEwi9f%L' \
     --env 'DB_EXTENSION=pg_trgm,btree_gist' \
-    -v /srv/docker/gitlab/postgresql-data:/var/lib/postgresql \
+    --volume /srv/docker/gitlab/postgresql-data:/var/lib/postgresql \
     sameersbn/postgresql:12-20200524
   docker run --name gitlab-redis -d --restart always \
-    -v /srv/docker/gitlab/redis-data:/data \
+    --volume /srv/docker/gitlab/redis-data:/data \
     redis:6.2
   docker run --name gitlab -d --restart always \
     --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
@@ -59,7 +61,7 @@ if [[ "$responseDocker" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     --env 'TZ=Asia/Tehran' --env 'GITLAB_TIMEZONE=Tehran' --env 'GITLAB_HTTPS=true' --env 'SSL_SELF_SIGNED=true' \
     --env 'GITLAB_ROOT_PASSWORD=' --env 'GITLAB_ROOT_EMAIL=' \
     --env 'GITLAB_BACKUP_SCHEDULE=weekly' --env 'GITLAB_BACKUP_TIME=02:00' \
-    -v /srv/docker/gitlab/gitlab-data:/home/git/data \
-    sameersbn/gitlab:15.0.3
+    --volume /srv/docker/gitlab/gitlab-data:/home/git/data \
+    sameersbn/gitlab:15.3.1
   docker logs -f gitlab
 fi
