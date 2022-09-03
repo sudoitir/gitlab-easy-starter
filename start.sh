@@ -24,21 +24,21 @@ if [[ "$responseDir" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     #sudo chmod -R a+X /srv/docker/gitlab
   fi
 fi
-read -r -p "Do You Create SSL? [y/N] " responseSSL
-if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-  openssl genrsa -out gitlab.key 2048
-  openssl req -new -key gitlab.key -out gitlab.csr
-  openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
-  openssl dhparam -out dhparam.pem 2048
-fi
-read -r -p "Copy SSL Stuffs To Gitlab Directory?? [y/N] " responseSSLCP
-if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-  mkdir -pv /srv/docker/gitlab/gitlab/certs
-  cp gitlab.key /srv/docker/gitlab/gitlab/certs
-  cp gitlab.crt /srv/docker/gitlab/gitlab/certs
-  cp dhparam.pem /srv/docker/gitlab/gitlab/certs
-  #  chmod 400 /srv/docker/gitlab/gitlab/certs/certsgitlab.key
-fi
+#read -r -p "Do You Create SSL? [y/N] " responseSSL
+#if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+#  openssl genrsa -out gitlab.key 2048
+#  openssl req -new -key gitlab.key -out gitlab.csr
+#  openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
+#  openssl dhparam -out dhparam.pem 2048
+#fi
+#read -r -p "Copy SSL Stuffs To Gitlab Directory?? [y/N] " responseSSLCP
+#if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+#  mkdir -pv /srv/docker/gitlab/gitlab/certs
+#  cp gitlab.key /srv/docker/gitlab/gitlab/certs
+#  cp gitlab.crt /srv/docker/gitlab/gitlab/certs
+#  cp dhparam.pem /srv/docker/gitlab/gitlab/certs
+#  #  chmod 400 /srv/docker/gitlab/gitlab/certs/certsgitlab.key
+#fi
 echo "Restart Docker....."
 sudo systemctl restart docker
 sleep 10
@@ -62,16 +62,17 @@ if [[ "$responseDocker" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   sleep 10
   docker run --name gitlab -d --restart always \
     --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
-    --publish 8022:22 --publish 8030:80 --publish 8443:443 \
+    --publish 8022:22 --publish 8030:80 \
     --env 'DB_USER=gitlab' --env 'DB_PASS=hoS$P3g5KY*oN87ZSVdZQEwi9f%L' --env 'DB_NAME=gitlabhq_production' \
-    --env 'GITLAB_PORT=8443' --env 'GITLAB_SSH_PORT=8022' --env 'GITLAB_HOST=localhost' \
+    --env 'GITLAB_PORT=8030' --env 'GITLAB_SSH_PORT=8022' --env 'GITLAB_HOST=localhost' \
     --env 'GITLAB_SECRETS_DB_KEY_BASE=dPjHvKh7w4nNJsmKbfVXqN9M7NT4PwnwjJrdx7kH9kL4zT4WcLHWPqzvXjtpF3k3' \
     --env 'GITLAB_SECRETS_SECRET_KEY_BASE=m7gMdV3TT7kPx9sRhr3r7dsnc7Xrmst3TPRXdLt4VVbcbfbRsH3Ldc7K4fmqvNWM' \
     --env 'GITLAB_SECRETS_OTP_KEY_BASE=q7fMdm3FtvqCcphxvpHnp9mjKzc4qV9ntMtmHKj93vmsvN9LmczPjM3NThV7n9qp' \
     --env 'NGINX_HSTS_MAXAGE=2592000' --env 'TZ=Asia/Tehran' --env 'GITLAB_TIMEZONE=Tehran' \
     --env 'GITLAB_BACKUP_SCHEDULE=weekly' --env 'GITLAB_BACKUP_TIME=02:00' \
-    --env 'GITLAB_HTTPS=true' --env 'SSL_SELF_SIGNED=false' \
     --volume /srv/docker/gitlab/gitlab:/home/git/data \
     sameersbn/gitlab:15.3.1
   docker logs -f gitlab
+#  --publish 8443:443 \
+#  --env 'GITLAB_HTTPS=true' --env 'SSL_SELF_SIGNED=false' \
 fi
