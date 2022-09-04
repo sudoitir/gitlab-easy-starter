@@ -58,4 +58,10 @@ fabric.properties
 
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
-/.idea/*
+
+/gitlab.key
+/gitlab.csr
+/gitlab.crt
+/dhparam.pem
+/.idea/
+/secrets/
