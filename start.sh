@@ -58,6 +58,7 @@ OPTIONS=(
   "Install Docker Engine"
   "Make Require Directories"
   "Create SSL For GitLab"
+  "Create a network"
   "Pull Images"
   "Run Gitlab (Postgres And Redis) Containers"
   "Run LDAP Containers"
@@ -126,6 +127,10 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     ;;
 
   3)
+    docker network create devops-network --driver bridge
+    echo "Done"
+    ;;
+  4)
     read -r -p "Do You Create SSL? [y/N] " responseSSL
     if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       openssl genrsa -out gitlab.key 2048
@@ -144,7 +149,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "Done"
     ;;
 
-  4)
+  5)
     echo "Pull Images...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker pull postgres:14.5
@@ -164,11 +169,11 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  5)
+  6)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab Postgres...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      docker run --name gitlab-postgresql -d --restart always \
+      docker run --name gitlab-postgresql -d --restart always --network devops-network \
         --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
@@ -177,13 +182,12 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         postgres:14.5
 
       echo "Run Gitlab Redis...."
-      docker run --name gitlab-redis -d --restart always \
+      docker run --name gitlab-redis -d --restart always --network devops-network \
         --volume /srv/docker/gitlab/redis:/data \
         redis:7.0.4
       echo "Done"
     else
-      sudo docker run --name gitlab-postgresql -d --restart always \
-        --env POSTGRES_DB="gitlabhq_production" \
+      sudo docker run --name gitlab-postgresql -d --restart always --network devops-network --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
         --env TZ="$timeZoneVar" \
@@ -191,14 +195,14 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         postgres:14.5
 
       echo "Run Gitlab Redis...."
-      sudo docker run --name gitlab-redis -d --restart always \
+      sudo docker run --name gitlab-redis -d --restart always --network devops-network \
         --volume /srv/docker/gitlab/redis:/data \
         redis:7.0.4
       echo "Done"
     fi
     ;;
 
-  6)
+  7)
     echo "you chose choice $REPLY which is $opt"
 
     echo "Run LDAP...."
@@ -206,7 +210,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       read -r -p "Enter Domain before dot, Example = example " domain1
       read -r -p "Enter Domain after dot, Example = org " domain2
 
-      docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
+      docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always --network devops-network \
         --env LDAP_ORGANISATION="$domain1-$domain2" \
         --env LDAP_DOMAIN="$domain1.$domain2" \
         --env LDAP_RFC2307BIS_SCHEMA="true" \
@@ -224,8 +228,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
 
       echo "Run PHP_LDAP_ADMIN...."
 
-      docker run -p 8010:80 --name ldap-ui-haytech --restart always --link openldap-haytech:ldapio \
-        --env LDAP_URI="ldap://openldap" \
+      docker run -p 8010:80 --name ldap-ui-haytech --restart always --network devops-networko \
+        --env LDAP_URI="http://openldap" \
         --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
         --env LDAP_REQUIRE_STARTTLS="false" \
         --env LDAP_ADMINS_GROUP="admins" \
@@ -245,7 +249,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       read -r -p "Enter Domain before dot, Example = example " domain1
       read -r -p "Enter Domain after dot, Example = org " domain2
 
-      sudo docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
+      sudo docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always --network devops-network \
         --env LDAP_ORGANISATION="$domain1-$domain2" \
         --env LDAP_DOMAIN="$domain1.$domain2" \
         --env LDAP_RFC2307BIS_SCHEMA="true" \
@@ -263,7 +267,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
 
       echo "Run PHP_LDAP_ADMIN...."
 
-      sudo docker run -p 8010:80 --name ldap-ui-haytech --restart always --link openldap-haytech:ldapio \
+      sudo docker run -p 8010:80 --name ldap-ui-haytech --restart always --network devops-network \
         --env LDAP_URI="ldap://openldap" \
         --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
         --env LDAP_REQUIRE_STARTTLS="false" \
@@ -283,7 +287,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  7)
+  8)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab...."
 
@@ -291,7 +295,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     read -r -p "Enable LDAP ? (true/false)" ldapEnable
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab -d --restart always \
-        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio --link openldap-haytech:ldapio \
+        --network devops-network \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
@@ -320,7 +324,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       echo "Done"
     else
       sudo docker run --name gitlab -d --restart always \
-        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio --link openldap-haytech:ldapio \
+        --network devops-network \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
@@ -350,17 +354,20 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  8)
+  9)
     echo "nameserver 178.22.122.100
 nameserver 185.51.200.2" | sudo tee -a /etc/resolv.conf
     echo "Done"
     ;;
 
-  9)
+  10)
     break
     ;;
 
-  *) echo "Invalid option $REPLY" ;;
+  *)
+    echo "Invalid option $REPLY"
+    break
+    ;;
 
   esac
   REPLY=
