@@ -1,3 +1,13 @@
+########### FIREWALL ########
+
+$ firewall-cmd --add-port=389/tcp --permanent
+$ firewall-cmd --add-port=636/tcp --permanent
+$ firewall-cmd --reload
+
+
+
+
+
 ############# Make Directories: #############
 
 sudo mkdir -p /srv/docker/gitlab/redis-data
