@@ -227,8 +227,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
 
-      echo "$domain1-$domain2"
-      echo "$domain1.$domain2"
+      echo "Organisation -> $domain1-$domain2"
+      echo "Domain -> $domain1.$domain2"
       echo "Info: Exposes Port -> "
       echo "LDAP Ports  : 8389 - 8636"
 
@@ -270,8 +270,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
 
-      echo "$domain1-$domain2"
-      echo "$domain1.$domain2"
+      echo "Organisation -> $domain1-$domain2"
+      echo "Domain -> $domain1.$domain2"
       echo "Info: Exposes Port -> "
       echo "LDAP Ports  : 8389 - 8636"
 
@@ -302,7 +302,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "Run Gitlab...."
 
     read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly) " autoBackup
-    read -r -p "Enable LDAP ? (true/false)" ldapEnable
+    read -r -p "Enable LDAP ? (true/false) " ldapEnable
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab -d --restart always --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
         --publish 8022:22 --publish 8040:80 \
