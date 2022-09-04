@@ -13,7 +13,7 @@ echo "
                                                                                                                                                "
 read -r -p "Are you using Docker desktop? (If Not Install Press 'n') [y/N] " dockerDesktop
 
-if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secrets/otp-key.txt || ! -f ./secrets/ldap-admin-key.txt || ! -f ./secrets/ldap-config-key.txt ]]; then
+if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secrets/otp-key.txt || ! -f ./secrets/postgres-key.txt || ! -f ./secrets/ldap-admin-key.txt || ! -f ./secrets/ldap-config-key.txt ]]; then
 
   REQUIRED_PKG="pwgen"
   PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG | grep "install ok installed")
@@ -29,6 +29,7 @@ if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secr
   gitlabSecretsDbKey="$(pwgen -Bsv1 64)"
   gitlabSecretsSecretKey="$(pwgen -Bsv1 64)"
   gitlabSecretsOtpKey="$(pwgen -Bsv1 64)"
+  postgresKey="$(pwgen -Bsv1 35)"
   ldapAdminKey="$(pwgen -s 15)"
   ldapConfigKey="$(pwgen -s 15)"
 
@@ -39,6 +40,7 @@ if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secr
   echo "$gitlabSecretsDbKey" >>./secrets/db-key.txt
   echo "$gitlabSecretsSecretKey" >>./secrets/secrets-key.txt
   echo "$gitlabSecretsOtpKey" >>./secrets/otp-key.txt
+  echo "$postgresKey" >>./secrets/postgres-key.txt
   echo "$ldapAdminKey" >>./secrets/ldap-admin-key.txt
   echo "$ldapConfigKey" >>./secrets/ldap-config-key.txt
 fi
@@ -48,6 +50,7 @@ city=$(echo "$timeZoneVar" | cut -d "/" -f 2)
 dbKey=$(cat ./secrets/db-key.txt)
 secretKey=$(cat ./secrets/secrets-key.txt)
 otpKey=$(cat ./secrets/otp-key.txt)
+postgresPass=$(cat ./secrets/postgres-key.tx)
 ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
 ldapConfigSecretKey=$(cat ./secrets/ldap-config-key.txt)
 
@@ -121,7 +124,6 @@ select opt in "${OPTIONS[@]}" "Quit"; do
   3)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab Postgres...."
-    read -r -p "Enter A Password For Postgres " postgresPass
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab-postgresql -d --restart always \
         --env POSTGRES_DB="gitlabhq_production" \
