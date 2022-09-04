@@ -151,14 +151,15 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       docker pull redis:7.0.4
       docker pull sameersbn/gitlab:15.3.1
       docker pull osixia/openldap:1.5.0
-      docker pull osixia/phpldapadmin:latest
+      docker pull wheelybird/ldap-user-manager:v1.5
+
       echo "Done"
     else
       sudo docker pull postgres:14.5
       sudo docker pull redis:7.0.4
       sudo docker pull sameersbn/gitlab:15.3.1
       sudo docker pull osixia/openldap:1.5.0
-      sudo docker pull osixia/phpldapadmin:latest
+      sudo docker pull wheelybird/ldap-user-manager:v1.5
       echo "Done"
     fi
     ;;
