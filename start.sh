@@ -249,14 +249,17 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --detach osixia/openldap:1.5.0
 
       echo "Info: Exposes Port -> "
-      echo "GitLab SSH Port  : 389"
-      echo "Gitlab Port      : 636"
+      echo "LDAP Ports  : 389 - 636"
 
       echo "Run PHP_LDAP_ADMIN...."
       docker run -p 8010:80 --name phpldap-admin-haytech \
         --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
         --env 'PHPLDAPADMIN_HTTPS=false' \
         osixia/phpldapadmin:latest
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP PHP Admin  : 8010"
+
       echo "Done"
     else
       sudo docker run -p 389:389 -p 636:636 --name openldap-haytech \
@@ -283,14 +286,17 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --detach osixia/openldap:1.5.0
 
       echo "Info: Exposes Port -> "
-      echo "GitLab SSH Port  : 389"
-      echo "Gitlab Port      : 636"
+      echo "LDAP Ports  : 389 - 636"
 
       echo "Run PHP_LDAP_ADMIN...."
       sudo docker run -p 8010:80 --name phpldap-admin-haytech \
         --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
         --env 'PHPLDAPADMIN_HTTPS=false' \
         osixia/phpldapadmin:latest
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP PHP Admin  : 8010"
+
       echo "Done"
     fi
     ;;
