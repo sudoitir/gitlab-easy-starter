@@ -11,19 +11,26 @@ echo "                                                                          
 echo "                                                          Made By SudoIt                                                                        "
 echo "
                                                                                                                                                "
-read -r -p "Do you use docker desktop? [y/N] " dockerDesktop
+read -r -p "Are you using Docker desktop? (If Not Install Press 'n') [y/N] " dockerDesktop
 
-if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secrets/otp-key.txt || ! -f ./secrets/ldap-admin-key.txt ]]; then
+if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secrets/otp-key.txt || ! -f ./secrets/ldap-admin-key.txt || ! -f ./secrets/ldap-config-key.txt ]]; then
 
-  echo "Install pwgen for creating secrets..."
-  sudo apt-get install pwgen
+  REQUIRED_PKG="pwgen"
+  PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG | grep "install ok installed")
+  echo Checking for $REQUIRED_PKG: "$PKG_OK"
+  if [ "" = "$PKG_OK" ]; then
+    echo "No $REQUIRED_PKG. Setting up $REQUIRED_PKG."
+    echo "Install pwgen for creating secrets..."
+    sudo apt-get --yes install $REQUIRED_PKG
+  fi
 
-  echo "Generating secrets..."
+  echo "Some secrets is missing -> Generating new secrets..."
 
   gitlabSecretsDbKey="$(pwgen -Bsv1 64)"
   gitlabSecretsSecretKey="$(pwgen -Bsv1 64)"
   gitlabSecretsOtpKey="$(pwgen -Bsv1 64)"
   ldapAdminKey="$(pwgen -s 15)"
+  ldapConfigKey="$(pwgen -s 15)"
 
   echo "Secrets are stored in ./secrets directory"
 
@@ -33,10 +40,16 @@ if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secr
   echo "$gitlabSecretsSecretKey" >>./secrets/secrets-key.txt
   echo "$gitlabSecretsOtpKey" >>./secrets/otp-key.txt
   echo "$ldapAdminKey" >>./secrets/ldap-admin-key.txt
+  echo "$ldapConfigKey" >>./secrets/ldap-config-key.txt
 fi
 
 timeZoneVar="$(cat /etc/timezone)"
 city=$(echo "$timeZoneVar" | cut -d "/" -f 2)
+dbKey=$(cat ./secrets/db-key.txt)
+secretKey=$(cat ./secrets/secrets-key.txt)
+otpKey=$(cat ./secrets/otp-key.txt)
+ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
+ldapConfigSecretKey=$(cat ./secrets/ldap-config-key.txt)
 
 OPTIONS=(
   "Make Require Directories"
@@ -144,11 +157,6 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab...."
 
-    dbKey=$(cat ./secrets/db-key.txt)
-    secretKey=$(cat ./secrets/secrets-key.txt)
-    otpKey=$(cat ./secrets/otp-key.txt)
-    ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
-
     read -r -p "Enable LDAP ? (true/false)" ldapEnable
     read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly)" autoBackup
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
@@ -220,8 +228,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       docker run -p 389:389 -p 636:636 --name openldap-haytech \
         --env LDAP_ORGANISATION="HayTech" \
         --env LDAP_DOMAIN="haytech.ir" \
-        --env LDAP_ADMIN_PASSWORD="hj^degD63gK*6^aWcS3" \
-        --env LDAP_CONFIG_PASSWORD="FHELX!6yUDBwjT56rMT" \
+        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
         --env LDAP_BACKEND="mdb" \
         --env LDAP_TLS="true" \
         --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
@@ -240,6 +248,10 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
 
+      echo "Info: Exposes Port -> "
+      echo "GitLab SSH Port  : 389"
+      echo "Gitlab Port      : 636"
+
       echo "Run PHP_LDAP_ADMIN...."
       docker run -p 8010:80 --name phpldap-admin-haytech \
         --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
@@ -250,8 +262,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       sudo docker run -p 389:389 -p 636:636 --name openldap-haytech \
         --env LDAP_ORGANISATION="HayTech" \
         --env LDAP_DOMAIN="haytech.ir" \
-        --env LDAP_ADMIN_PASSWORD="hj^degD63gK*6^aWcS3" \
-        --env LDAP_CONFIG_PASSWORD="FHELX!6yUDBwjT56rMT" \
+        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
         --env LDAP_BACKEND="mdb" \
         --env LDAP_TLS="true" \
         --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
@@ -269,6 +281,10 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
+
+      echo "Info: Exposes Port -> "
+      echo "GitLab SSH Port  : 389"
+      echo "Gitlab Port      : 636"
 
       echo "Run PHP_LDAP_ADMIN...."
       sudo docker run -p 8010:80 --name phpldap-admin-haytech \
@@ -304,6 +320,25 @@ nameserver 185.51.200.2" | sudo tee -a /etc/resolv.conf
     ;;
 
   8)
+    REQUIRED_PKG="docker-ce"
+    PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG | grep "install ok installed")
+    echo Checking for $REQUIRED_PKG: "$PKG_OK"
+    if [ "" = "$PKG_OK" ]; then
+      echo "No $REQUIRED_PKG. Setting up $REQUIRED_PKG."
+      sudo apt-get update
+      sudo apt-get --yes install \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+      sudo mkdir -p /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+      sudo apt-get update
+      sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    fi
     sudo apt-get update
     sudo apt-get install \
       ca-certificates \
