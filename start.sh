@@ -55,14 +55,14 @@ ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
 ldapConfigSecretKey=$(cat ./secrets/ldap-config-key.txt)
 
 OPTIONS=(
+  "Install Docker Engine"
   "Make Require Directories"
+  "Create SSL For GitLab"
   "Pull Images"
   "Run Gitlab (Postgres And Redis) Containers"
-  "Run Gitlab Container"
   "Run LDAP Containers"
-  "Create SSL For GitLab"
+  "Run Gitlab Container"
   "Set DNS"
-  "Install Docker Engine"
 )
 
 PS3="$prompt "
@@ -71,6 +71,29 @@ select opt in "${OPTIONS[@]}" "Quit"; do
   case "$REPLY" in
 
   1)
+    REQUIRED_PKG="docker-ce"
+    PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG | grep "install ok installed")
+    echo Checking for $REQUIRED_PKG: "$PKG_OK"
+    if [ "" = "$PKG_OK" ]; then
+      echo "No $REQUIRED_PKG. Setting up $REQUIRED_PKG."
+      sudo apt-get update
+      sudo apt-get --yes install \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+      sudo mkdir -p /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+      sudo apt-get update
+      sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    fi
+    echo "Done"
+    ;;
+
+  2)
     read -r -p "Enter Your Linux UserName For Giving Permission: " userName
 
     read -r -p "Are You SELinux users? [y/N] " responseSELinux
@@ -102,7 +125,26 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "Done"
     ;;
 
-  2)
+  3)
+    read -r -p "Do You Create SSL? [y/N] " responseSSL
+    if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      openssl genrsa -out gitlab.key 2048
+      openssl req -new -key gitlab.key -out gitlab.csr
+      openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
+      openssl dhparam -out dhparam.pem 2048
+    fi
+    read -r -p "Copy SSL Certs To Gitlab Directory?? [y/N] " responseSSLCP
+    if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      mkdir -pv /srv/docker/gitlab/gitlab/certs
+      cp gitlab.key /srv/docker/gitlab/gitlab/certs
+      cp gitlab.crt /srv/docker/gitlab/gitlab/certs
+      cp dhparam.pem /srv/docker/gitlab/gitlab/certs
+      #  chmod 400 /srv/docker/gitlab/gitlab/certs/certsgitlab.key
+    fi
+    echo "Done"
+    ;;
+
+  4)
     echo "Pull Images...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker pull postgres:14.5
@@ -121,7 +163,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  3)
+  5)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab Postgres...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
@@ -155,7 +197,88 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  4)
+  6)
+    echo "you chose choice $REPLY which is $opt"
+
+    echo "Run LDAP...."
+    if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
+        --env LDAP_ORGANISATION="HayTech" \
+        --env LDAP_DOMAIN="haytech.ir" \
+        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
+        --env LDAP_BACKEND="mdb" \
+        --env LDAP_TLS="true" \
+        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
+        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
+        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
+        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
+        --env LDAP_TLS_ENFORCE="false" \
+        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
+        --env LDAP_TLS_VERIFY_CLIENT="demand" \
+        --env LDAP_REPLICATION="false" \
+        --env KEEP_EXISTING_CONFIG="false" \
+        --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
+        --env LDAP_SSL_HELPER_PREFIX="ldap" \
+        --volume /srv/docker/ldap/ldap:/var/lib/ldap \
+        --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
+        --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
+        --detach osixia/openldap:1.5.0
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP Ports  : 389 - 636"
+
+      echo "Run PHP_LDAP_ADMIN...."
+      docker run -p 8010:80 --name phpldap-admin-haytech --restart always \
+        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
+        --env 'PHPLDAPADMIN_HTTPS=false' \
+        osixia/phpldapadmin:latest
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP PHP Admin  : 8010"
+
+      echo "Done"
+    else
+      sudo docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
+        --env LDAP_ORGANISATION="HayTech" \
+        --env LDAP_DOMAIN="haytech.ir" \
+        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
+        --env LDAP_BACKEND="mdb" \
+        --env LDAP_TLS="true" \
+        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
+        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
+        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
+        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
+        --env LDAP_TLS_ENFORCE="false" \
+        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
+        --env LDAP_TLS_VERIFY_CLIENT="demand" \
+        --env LDAP_REPLICATION="false" \
+        --env KEEP_EXISTING_CONFIG="false" \
+        --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
+        --env LDAP_SSL_HELPER_PREFIX="ldap" \
+        --volume /srv/docker/ldap/ldap:/var/lib/ldap \
+        --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
+        --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
+        --detach osixia/openldap:1.5.0
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP Ports  : 389 - 636"
+
+      echo "Run PHP_LDAP_ADMIN...."
+      sudo docker run -p 8010:80 --name phpldap-admin-haytech --restart always \
+        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
+        --env 'PHPLDAPADMIN_HTTPS=false' \
+        osixia/phpldapadmin:latest
+
+      echo "Info: Exposes Port -> "
+      echo "LDAP PHP Admin  : 8010"
+
+      echo "Done"
+    fi
+    ;;
+
+  7)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab...."
 
@@ -222,131 +345,9 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     fi
     ;;
 
-  5)
-    echo "you chose choice $REPLY which is $opt"
-
-    echo "Run LDAP...."
-    if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      docker run -p 389:389 -p 636:636 --name openldap-haytech \
-        --env LDAP_ORGANISATION="HayTech" \
-        --env LDAP_DOMAIN="haytech.ir" \
-        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
-        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
-        --env LDAP_BACKEND="mdb" \
-        --env LDAP_TLS="true" \
-        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
-        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
-        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
-        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
-        --env LDAP_TLS_ENFORCE="false" \
-        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
-        --env LDAP_TLS_VERIFY_CLIENT="demand" \
-        --env LDAP_REPLICATION="false" \
-        --env KEEP_EXISTING_CONFIG="false" \
-        --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
-        --env LDAP_SSL_HELPER_PREFIX="ldap" \
-        --volume /srv/docker/ldap/ldap:/var/lib/ldap \
-        --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
-        --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
-        --detach osixia/openldap:1.5.0
-
-      echo "Info: Exposes Port -> "
-      echo "LDAP Ports  : 389 - 636"
-
-      echo "Run PHP_LDAP_ADMIN...."
-      docker run -p 8010:80 --name phpldap-admin-haytech \
-        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
-        --env 'PHPLDAPADMIN_HTTPS=false' \
-        osixia/phpldapadmin:latest
-
-      echo "Info: Exposes Port -> "
-      echo "LDAP PHP Admin  : 8010"
-
-      echo "Done"
-    else
-      sudo docker run -p 389:389 -p 636:636 --name openldap-haytech \
-        --env LDAP_ORGANISATION="HayTech" \
-        --env LDAP_DOMAIN="haytech.ir" \
-        --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
-        --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
-        --env LDAP_BACKEND="mdb" \
-        --env LDAP_TLS="true" \
-        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
-        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
-        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
-        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
-        --env LDAP_TLS_ENFORCE="false" \
-        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
-        --env LDAP_TLS_VERIFY_CLIENT="demand" \
-        --env LDAP_REPLICATION="false" \
-        --env KEEP_EXISTING_CONFIG="false" \
-        --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
-        --env LDAP_SSL_HELPER_PREFIX="ldap" \
-        --volume /srv/docker/ldap/ldap:/var/lib/ldap \
-        --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
-        --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
-        --detach osixia/openldap:1.5.0
-
-      echo "Info: Exposes Port -> "
-      echo "LDAP Ports  : 389 - 636"
-
-      echo "Run PHP_LDAP_ADMIN...."
-      sudo docker run -p 8010:80 --name phpldap-admin-haytech \
-        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
-        --env 'PHPLDAPADMIN_HTTPS=false' \
-        osixia/phpldapadmin:latest
-
-      echo "Info: Exposes Port -> "
-      echo "LDAP PHP Admin  : 8010"
-
-      echo "Done"
-    fi
-    ;;
-
-  6)
-    read -r -p "Do You Create SSL? [y/N] " responseSSL
-    if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      openssl genrsa -out gitlab.key 2048
-      openssl req -new -key gitlab.key -out gitlab.csr
-      openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
-      openssl dhparam -out dhparam.pem 2048
-    fi
-    read -r -p "Copy SSL Certs To Gitlab Directory?? [y/N] " responseSSLCP
-    if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      mkdir -pv /srv/docker/gitlab/gitlab/certs
-      cp gitlab.key /srv/docker/gitlab/gitlab/certs
-      cp gitlab.crt /srv/docker/gitlab/gitlab/certs
-      cp dhparam.pem /srv/docker/gitlab/gitlab/certs
-      #  chmod 400 /srv/docker/gitlab/gitlab/certs/certsgitlab.key
-    fi
-    echo "Done"
-    ;;
-  7)
+  8)
     echo "nameserver 178.22.122.100
 nameserver 185.51.200.2" | sudo tee -a /etc/resolv.conf
-    echo "Done"
-    ;;
-
-  8)
-    REQUIRED_PKG="docker-ce"
-    PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG | grep "install ok installed")
-    echo Checking for $REQUIRED_PKG: "$PKG_OK"
-    if [ "" = "$PKG_OK" ]; then
-      echo "No $REQUIRED_PKG. Setting up $REQUIRED_PKG."
-      sudo apt-get update
-      sudo apt-get --yes install \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
-      sudo mkdir -p /etc/apt/keyrings
-      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-      sudo apt-get update
-      sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    fi
     echo "Done"
     ;;
 
