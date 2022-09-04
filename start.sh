@@ -50,7 +50,7 @@ city=$(echo "$timeZoneVar" | cut -d "/" -f 2)
 dbKey=$(cat ./secrets/db-key.txt)
 secretKey=$(cat ./secrets/secrets-key.txt)
 otpKey=$(cat ./secrets/otp-key.txt)
-postgresPass=$(cat ./secrets/postgres-key.tx)
+postgresPass=$(cat ./secrets/postgres-key.txt)
 ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
 ldapConfigSecretKey=$(cat ./secrets/ldap-config-key.txt)
 
