@@ -202,24 +202,17 @@ select opt in "${OPTIONS[@]}" "Quit"; do
 
     echo "Run LDAP...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      read -r -p "Enter Domain before dot, Example = example " domain1
+      read -r -p "Enter Domain after dot, Example = org " domain2
+
       docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
-        --env LDAP_ORGANISATION="HayTech" \
-        --env LDAP_DOMAIN="haytech.ir" \
+        --env LDAP_ORGANISATION="$domain1-$domain2" \
+        --env LDAP_DOMAIN="$domain1.$domain2" \
+        --env LDAP_RFC2307BIS_SCHEMA="true" \
         --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
         --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
-        --env LDAP_BACKEND="mdb" \
-        --env LDAP_TLS="true" \
-        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
-        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
-        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
-        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
-        --env LDAP_TLS_ENFORCE="false" \
-        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
-        --env LDAP_TLS_VERIFY_CLIENT="demand" \
-        --env LDAP_REPLICATION="false" \
-        --env KEEP_EXISTING_CONFIG="false" \
         --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
-        --env LDAP_SSL_HELPER_PREFIX="ldap" \
+        --env LDAP_TLS_VERIFY_CLIENT="never" \
         --volume /srv/docker/ldap/ldap:/var/lib/ldap \
         --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
@@ -229,34 +222,36 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       echo "LDAP Ports  : 389 - 636"
 
       echo "Run PHP_LDAP_ADMIN...."
-      docker run -p 8010:80 --name phpldap-admin-haytech --restart always \
-        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
-        --env 'PHPLDAPADMIN_HTTPS=false' \
-        osixia/phpldapadmin:latest
+
+      docker run -p 8010:80 --name ldap-ui-haytech --restart always --link openldap-haytech:ldapio \
+        --env LDAP_URI="ldap://openldap" \
+        --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
+        --env LDAP_REQUIRE_STARTTLS="false" \
+        --env LDAP_ADMINS_GROUP="admins" \
+        --env LDAP_ADMIN_BIND_DN="cn=admin,dc=$domain1,dc=$domain2" \
+        --env LDAP_ADMIN_BIND_PWD="admin" \
+        --env LDAP_IGNORE_CERT_ERRORS="true" \
+        --env NO_HTTPS="true" \
+        --env PASSWORD_HASH="SSHA" \
+        --env SERVER_HOSTNAME="localhost:8010" \
+        wheelybird/ldap-user-manager:v1.5
 
       echo "Info: Exposes Port -> "
-      echo "LDAP PHP Admin  : 8010"
+      echo "LDAP UI  : 8010"
 
       echo "Done"
     else
+      read -r -p "Enter Domain before dot, Example = example " domain1
+      read -r -p "Enter Domain after dot, Example = org " domain2
+
       sudo docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always \
-        --env LDAP_ORGANISATION="HayTech" \
-        --env LDAP_DOMAIN="haytech.ir" \
+        --env LDAP_ORGANISATION="$domain1-$domain2" \
+        --env LDAP_DOMAIN="$domain1.$domain2" \
+        --env LDAP_RFC2307BIS_SCHEMA="true" \
         --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
         --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
-        --env LDAP_BACKEND="mdb" \
-        --env LDAP_TLS="true" \
-        --env LDAP_TLS_CRT_FILENAME="ldap.crt" \
-        --env LDAP_TLS_KEY_FILENAME="ldap.key" \
-        --env LDAP_TLS_DH_PARAM_FILENAME="dhparam.pem" \
-        --env LDAP_TLS_CA_CRT_FILENAME="ca.crt" \
-        --env LDAP_TLS_ENFORCE="false" \
-        --env LDAP_TLS_CIPHER_SUITE="SECURE256:-VERS-SSL3.0" \
-        --env LDAP_TLS_VERIFY_CLIENT="demand" \
-        --env LDAP_REPLICATION="false" \
-        --env KEEP_EXISTING_CONFIG="false" \
         --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
-        --env LDAP_SSL_HELPER_PREFIX="ldap" \
+        --env LDAP_TLS_VERIFY_CLIENT="never" \
         --volume /srv/docker/ldap/ldap:/var/lib/ldap \
         --volume /srv/docker/ldap/slapd.d:/etc/ldap/slapd.d \
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
@@ -266,13 +261,22 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       echo "LDAP Ports  : 389 - 636"
 
       echo "Run PHP_LDAP_ADMIN...."
-      sudo docker run -p 8010:80 --name phpldap-admin-haytech --restart always \
-        --env 'PHPLDAPADMIN_LDAP_HOSTS=openldap' \
-        --env 'PHPLDAPADMIN_HTTPS=false' \
-        osixia/phpldapadmin:latest
+
+      sudo docker run -p 8010:80 --name ldap-ui-haytech --restart always --link openldap-haytech:ldapio \
+        --env LDAP_URI="ldap://openldap" \
+        --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
+        --env LDAP_REQUIRE_STARTTLS="false" \
+        --env LDAP_ADMINS_GROUP="admins" \
+        --env LDAP_ADMIN_BIND_DN="cn=admin,dc=$domain1,dc=$domain2" \
+        --env LDAP_ADMIN_BIND_PWD="admin" \
+        --env LDAP_IGNORE_CERT_ERRORS="true" \
+        --env NO_HTTPS="true" \
+        --env PASSWORD_HASH="SSHA" \
+        --env SERVER_HOSTNAME="localhost:8010" \
+        wheelybird/ldap-user-manager:v1.5
 
       echo "Info: Exposes Port -> "
-      echo "LDAP PHP Admin  : 8010"
+      echo "LDAP UI  : 8010"
 
       echo "Done"
     fi
@@ -282,11 +286,10 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab...."
 
-    read -r -p "Enable LDAP ? (true/false)" ldapEnable
-    read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly)" autoBackup
+    read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly) " autoBackup
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab -d --restart always \
-        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
+        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio --link openldap-haytech:ldapio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
@@ -302,8 +305,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --env GITLAB_TIMEZONE="$city" \
         --env GITLAB_BACKUP_SCHEDULE="$autoBackup" \
         --env GITLAB_BACKUP_TIME="02:00" \
-        --env LDAP_ENABLED="$ldapEnable" \
-        --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
+        --env LDAP_ENABLED="true" \
+        --env OAUTH_AUTO_LINK_LDAP_USER="true" \
         --env LDAP_HOST="localhost" \
         --env LDAP_PASS="$ldapAdminSecretKey" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
@@ -315,7 +318,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       echo "Done"
     else
       sudo docker run --name gitlab -d --restart always \
-        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
+        --link gitlab-postgresql:postgresql --link gitlab-redis:redisio --link openldap-haytech:ldapio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
