@@ -63,5 +63,4 @@ fabric.properties
 /gitlab.csr
 /gitlab.crt
 /dhparam.pem
-/.idea/
 /secrets/
