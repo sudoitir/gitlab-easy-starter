@@ -309,7 +309,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       openssl x509 -req -days 3650 -in gitlab.csr -signkey gitlab.key -out gitlab.crt
       openssl dhparam -out dhparam.pem 2048
     fi
-    read -r -p "Copy SSL Stuffs To Gitlab Directory?? [y/N] " responseSSLCP
+    read -r -p "Copy SSL Certs To Gitlab Directory?? [y/N] " responseSSLCP
     if [[ "$responseSSLCP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       mkdir -pv /srv/docker/gitlab/gitlab/certs
       cp gitlab.key /srv/docker/gitlab/gitlab/certs
