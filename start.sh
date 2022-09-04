@@ -13,6 +13,31 @@ echo "
                                                                                                                                                "
 read -r -p "Do you use docker desktop? [y/N] " dockerDesktop
 
+if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secrets/otp-key.txt || ! -f ./secrets/ldap-admin-key.txt ]]; then
+
+  echo "Install pwgen for creating secrets..."
+  sudo apt-get install pwgen
+
+  echo "Generating secrets..."
+
+  gitlabSecretsDbKey="$(pwgen -Bsv1 64)"
+  gitlabSecretsSecretKey="$(pwgen -Bsv1 64)"
+  gitlabSecretsOtpKey="$(pwgen -Bsv1 64)"
+  ldapAdminKey="$(pwgen -s 15)"
+
+  echo "Secrets are stored in ./secrets directory"
+
+  mkdir ./secrets
+
+  echo "$gitlabSecretsDbKey" >>./secrets/db-key.txt
+  echo "$gitlabSecretsSecretKey" >>./secrets/secrets-key.txt
+  echo "$gitlabSecretsOtpKey" >>./secrets/otp-key.txt
+  echo "$ldapAdminKey" >>./secrets/ldap-admin-key.txt
+fi
+
+timeZoneVar="$(cat /etc/timezone)"
+city=$(echo "$timeZoneVar" | cut -d "/" -f 2)
+
 OPTIONS=(
   "Make Require Directories"
   "Pull Images"
@@ -84,14 +109,12 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab Postgres...."
     read -r -p "Enter A Password For Postgres " postgresPass
-    read -r -p "Enter Database Time Zone " timeZone
-    echo "Example: Asia/Tehran"
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab-postgresql -d --restart always \
         --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
-        --env TZ="$timeZone" \
+        --env TZ="$timeZoneVar" \
         --volume /srv/docker/gitlab/postgresql:/var/lib/postgresql \
         postgres:14.5
 
@@ -105,7 +128,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
-        --env TZ="$timeZone" \
+        --env TZ="$timeZoneVar" \
         --volume /srv/docker/gitlab/postgresql:/var/lib/postgresql \
         postgres:14.5
 
@@ -120,57 +143,71 @@ select opt in "${OPTIONS[@]}" "Quit"; do
   4)
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab...."
+
+    dbKey=$(cat ./secrets/db-key.txt)
+    secretKey=$(cat ./secrets/secrets-key.txt)
+    otpKey=$(cat ./secrets/otp-key.txt)
+    ldapAdminSecretKey=$(cat ./secrets/ldap-admin-key.txt)
+
+    read -r -p "Enable LDAP ? (true/false)" ldapEnable
+    read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly)" autoBackup
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab -d --restart always \
         --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
-        --env DB_PASS="hoSP3g5KY*oN87ZSVdZQEwi9f%L" \
+        --env DB_PASS="$postgresPass" \
         --env DB_NAME="gitlabhq_production" \
         --env GITLAB_PORT="8040" \
         --env GITLAB_SSH_PORT="8022" \
         --env GITLAB_HOST="localhost" \
-        --env GITLAB_SECRETS_DB_KEY_BASE="dPjHvKh7w4nNJsmKbfVXqN9M7NT4PwnwjJrdx7kH9kL4zT4WcLHWPqzvXjtpF3k3" \
-        --env GITLAB_SECRETS_SECRET_KEY_BASE="m7gMdV3TT7kPx9sRhr3r7dsnc7Xrmst3TPRXdLt4VVbcbfbRsH3Ldc7K4fmqvNWM" \
-        --env GITLAB_SECRETS_OTP_KEY_BASE="q7fMdm3FtvqCcphxvpHnp9mjKzc4qV9ntMtmHKj93vmsvN9LmczPjM3NThV7n9qp" \
+        --env GITLAB_SECRETS_DB_KEY_BASE="$dbKey" \
+        --env GITLAB_SECRETS_SECRET_KEY_BASE="$secretKey" \
+        --env GITLAB_SECRETS_OTP_KEY_BASE="$otpKey" \
         --env NGINX_HSTS_MAXAGE="2592000" \
-        --env TZ="Asia/Tehran" \
-        --env GITLAB_TIMEZONE="Tehran" \
-        --env GITLAB_BACKUP_SCHEDULE="weekly" \
+        --env TZ="$timeZoneVar" \
+        --env GITLAB_TIMEZONE="$city" \
+        --env GITLAB_BACKUP_SCHEDULE="$autoBackup" \
         --env GITLAB_BACKUP_TIME="02:00" \
-        --env LDAP_ENABLED="true" \
-        --env OAUTH_AUTO_LINK_LDAP_USER="true" \
+        --env LDAP_ENABLED="$ldapEnable" \
+        --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
         --env LDAP_HOST="localhost" \
-        --env LDAP_PASS="hj^degD6$3gK*6^aWcS3" \
+        --env LDAP_PASS="$ldapAdminSecretKey" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
         sameersbn/gitlab:15.3.1
       docker logs -f gitlab
+      echo "Info: Exposes Port -> "
+      echo "GitLab SSH Port  : 8022"
+      echo "Gitlab Port      : 8040"
       echo "Done"
     else
       sudo docker run --name gitlab -d --restart always \
         --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
-        --env DB_PASS="hoSP3g5KY*oN87ZSVdZQEwi9f%L" \
+        --env DB_PASS="$postgresPass" \
         --env DB_NAME="gitlabhq_production" \
         --env GITLAB_PORT="8040" \
         --env GITLAB_SSH_PORT="8022" \
         --env GITLAB_HOST="localhost" \
-        --env GITLAB_SECRETS_DB_KEY_BASE="dPjHvKh7w4nNJsmKbfVXqN9M7NT4PwnwjJrdx7kH9kL4zT4WcLHWPqzvXjtpF3k3" \
-        --env GITLAB_SECRETS_SECRET_KEY_BASE="m7gMdV3TT7kPx9sRhr3r7dsnc7Xrmst3TPRXdLt4VVbcbfbRsH3Ldc7K4fmqvNWM" \
-        --env GITLAB_SECRETS_OTP_KEY_BASE="q7fMdm3FtvqCcphxvpHnp9mjKzc4qV9ntMtmHKj93vmsvN9LmczPjM3NThV7n9qp" \
+        --env GITLAB_SECRETS_DB_KEY_BASE="$dbKey" \
+        --env GITLAB_SECRETS_SECRET_KEY_BASE="$secretKey" \
+        --env GITLAB_SECRETS_OTP_KEY_BASE="$otpKey" \
         --env NGINX_HSTS_MAXAGE="2592000" \
-        --env TZ="Asia/Tehran" \
-        --env GITLAB_TIMEZONE="Tehran" \
-        --env GITLAB_BACKUP_SCHEDULE="weekly" \
+        --env TZ="$timeZoneVar" \
+        --env GITLAB_TIMEZONE="$city" \
+        --env GITLAB_BACKUP_SCHEDULE="$autoBackup" \
         --env GITLAB_BACKUP_TIME="02:00" \
-        --env LDAP_ENABLED="true" \
-        --env OAUTH_AUTO_LINK_LDAP_USER="true" \
+        --env LDAP_ENABLED="$ldapEnable" \
+        --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
         --env LDAP_HOST="localhost" \
-        --env LDAP_PASS="hj^degD6$3gK*6^aWcS3" \
+        --env LDAP_PASS="$ldapAdminSecretKey" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
         sameersbn/gitlab:15.3.1
       sudo docker logs -f gitlab
+      echo "Info: Exposes Port -> "
+      echo "GitLab SSH Port  : 8022"
+      echo "Gitlab Port      : 8040"
       echo "Done"
     fi
     ;;
