@@ -287,6 +287,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "Run Gitlab...."
 
     read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly) " autoBackup
+    read -r -p "Enable LDAP ? (true/false)" ldapEnable
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       docker run --name gitlab -d --restart always \
         --link gitlab-postgresql:postgresql --link gitlab-redis:redisio --link openldap-haytech:ldapio \
@@ -305,8 +306,8 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --env GITLAB_TIMEZONE="$city" \
         --env GITLAB_BACKUP_SCHEDULE="$autoBackup" \
         --env GITLAB_BACKUP_TIME="02:00" \
-        --env LDAP_ENABLED="true" \
-        --env OAUTH_AUTO_LINK_LDAP_USER="true" \
+        --env LDAP_ENABLED="$ldapEnable" \
+        --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
         --env LDAP_HOST="localhost" \
         --env LDAP_PASS="$ldapAdminSecretKey" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
