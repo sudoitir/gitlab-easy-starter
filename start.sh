@@ -35,7 +35,7 @@ if [[ ! -f ./secrets/db-key.txt || ! -f ./secrets/secrets-key.txt || ! -f ./secr
 
   echo "Secrets are stored in ./secrets directory"
 
-  mkdir ./secrets
+  mkdir -p ./secrets
 
   echo "$gitlabSecretsDbKey" >>./secrets/db-key.txt
   echo "$gitlabSecretsSecretKey" >>./secrets/secrets-key.txt
