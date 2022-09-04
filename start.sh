@@ -127,10 +127,6 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     ;;
 
   3)
-    docker network create devops-network --driver bridge
-    echo "Done"
-    ;;
-  4)
     read -r -p "Do You Create SSL? [y/N] " responseSSL
     if [[ "$responseSSL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       openssl genrsa -out gitlab.key 2048
@@ -146,6 +142,11 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       cp dhparam.pem /srv/docker/gitlab/gitlab/certs
       #  chmod 400 /srv/docker/gitlab/gitlab/certs/certsgitlab.key
     fi
+    echo "Done"
+    ;;
+
+  4)
+    docker network create ldap-network --driver bridge
     echo "Done"
     ;;
 
@@ -173,7 +174,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     echo "you chose choice $REPLY which is $opt"
     echo "Run Gitlab Postgres...."
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      docker run --name gitlab-postgresql -d --restart always --network devops-network \
+      docker run --name gitlab-postgresql -d --restart always \
         --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
@@ -182,12 +183,13 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         postgres:14.5
 
       echo "Run Gitlab Redis...."
-      docker run --name gitlab-redis -d --restart always --network devops-network \
+      docker run --name gitlab-redis -d --restart always \
         --volume /srv/docker/gitlab/redis:/data \
         redis:7.0.4
       echo "Done"
     else
-      sudo docker run --name gitlab-postgresql -d --restart always --network devops-network --env POSTGRES_DB="gitlabhq_production" \
+      sudo docker run --name gitlab-postgresql -d --restart always \
+        --env POSTGRES_DB="gitlabhq_production" \
         --env POSTGRES_USER="gitlab" \
         --env POSTGRES_PASSWORD="$postgresPass" \
         --env TZ="$timeZoneVar" \
@@ -195,7 +197,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         postgres:14.5
 
       echo "Run Gitlab Redis...."
-      sudo docker run --name gitlab-redis -d --restart always --network devops-network \
+      sudo docker run --name gitlab-redis -d --restart always \
         --volume /srv/docker/gitlab/redis:/data \
         redis:7.0.4
       echo "Done"
@@ -210,11 +212,13 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       read -r -p "Enter Domain before dot, Example = example " domain1
       read -r -p "Enter Domain after dot, Example = org " domain2
 
-      docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always --network devops-network \
+      docker run -d -p 8389:389 -p 8636:636 --name openldap-haytech --restart always --network ldap-network \
         --env LDAP_ORGANISATION="$domain1-$domain2" \
         --env LDAP_DOMAIN="$domain1.$domain2" \
         --env LDAP_RFC2307BIS_SCHEMA="true" \
+        --env LDAP_ADMIN_USERNAME="admin" \
         --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_USERNAME="config" \
         --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
         --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
         --env LDAP_TLS_VERIFY_CLIENT="never" \
@@ -223,13 +227,15 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
 
+      echo "$domain1-$domain2"
+      echo "$domain1.$domain2"
       echo "Info: Exposes Port -> "
-      echo "LDAP Ports  : 389 - 636"
+      echo "LDAP Ports  : 8389 - 8636"
 
       echo "Run PHP_LDAP_ADMIN...."
 
-      docker run -p 8010:80 --name ldap-ui-haytech --restart always --network devops-networko \
-        --env LDAP_URI="http://openldap" \
+      docker run -d -p 8010:80 --name ldap-ui-haytech --restart always --network ldap-network \
+        --env LDAP_URI="http://localhost:8389" \
         --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
         --env LDAP_REQUIRE_STARTTLS="false" \
         --env LDAP_ADMINS_GROUP="admins" \
@@ -249,11 +255,13 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       read -r -p "Enter Domain before dot, Example = example " domain1
       read -r -p "Enter Domain after dot, Example = org " domain2
 
-      sudo docker run -p 389:389 -p 636:636 --name openldap-haytech --restart always --network devops-network \
+      sudo docker run -d -p 8389:389 -p 8636:636 --name openldap-haytech --restart always --network ldap-network \
         --env LDAP_ORGANISATION="$domain1-$domain2" \
         --env LDAP_DOMAIN="$domain1.$domain2" \
         --env LDAP_RFC2307BIS_SCHEMA="true" \
+        --env LDAP_ADMIN_USERNAME="admin" \
         --env LDAP_ADMIN_PASSWORD="$ldapAdminSecretKey" \
+        --env LDAP_CONFIG_USERNAME="config" \
         --env LDAP_CONFIG_PASSWORD="$ldapConfigSecretKey" \
         --env LDAP_REMOVE_CONFIG_AFTER_SETUP="true" \
         --env LDAP_TLS_VERIFY_CLIENT="never" \
@@ -262,13 +270,15 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --volume /srv/docker/ldap/certs:/container/service/slapd/assets/certs/ \
         --detach osixia/openldap:1.5.0
 
+      echo "$domain1-$domain2"
+      echo "$domain1.$domain2"
       echo "Info: Exposes Port -> "
-      echo "LDAP Ports  : 389 - 636"
+      echo "LDAP Ports  : 8389 - 8636"
 
       echo "Run PHP_LDAP_ADMIN...."
 
-      sudo docker run -p 8010:80 --name ldap-ui-haytech --restart always --network devops-network \
-        --env LDAP_URI="ldap://openldap" \
+      sudo docker run -d -p 8010:80 --name ldap-ui-haytech --restart always --network ldap-network \
+        --env LDAP_URI="http://localhost:8389" \
         --env LDAP_BASE_DN="dc=$domain1,dc=$domain2" \
         --env LDAP_REQUIRE_STARTTLS="false" \
         --env LDAP_ADMINS_GROUP="admins" \
@@ -294,8 +304,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
     read -r -p "Select Automatic Backups: (disable, daily, weekly or monthly) " autoBackup
     read -r -p "Enable LDAP ? (true/false)" ldapEnable
     if [[ "$dockerDesktop" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      docker run --name gitlab -d --restart always \
-        --network devops-network \
+      docker run --name gitlab -d --restart always --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
@@ -315,6 +324,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
         --env LDAP_HOST="localhost" \
         --env LDAP_PASS="$ldapAdminSecretKey" \
+        --env LDAP_PORT="8389" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
         sameersbn/gitlab:15.3.1
       docker logs -f gitlab
@@ -323,8 +333,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
       echo "Gitlab Port      : 8040"
       echo "Done"
     else
-      sudo docker run --name gitlab -d --restart always \
-        --network devops-network \
+      sudo docker run --name gitlab -d --restart always --link gitlab-postgresql:postgresql --link gitlab-redis:redisio \
         --publish 8022:22 --publish 8040:80 \
         --env DB_USER="gitlab" \
         --env DB_PASS="$postgresPass" \
@@ -344,6 +353,7 @@ select opt in "${OPTIONS[@]}" "Quit"; do
         --env OAUTH_AUTO_LINK_LDAP_USER="$ldapEnable" \
         --env LDAP_HOST="localhost" \
         --env LDAP_PASS="$ldapAdminSecretKey" \
+        --env LDAP_PORT="8389" \
         --volume /srv/docker/gitlab/gitlab:/home/git/data \
         sameersbn/gitlab:15.3.1
       sudo docker logs -f gitlab
